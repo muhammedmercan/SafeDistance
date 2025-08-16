@@ -49,8 +49,6 @@ class MainActivity : ComponentActivity() {
     private val maxNotificationPermissionRequests = 3
 
 
-
-
     private val cameraPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { isGranted ->
@@ -138,7 +136,8 @@ class MainActivity : ComponentActivity() {
 
     private fun checkAndStartService() {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
-            != PackageManager.PERMISSION_GRANTED) {
+            != PackageManager.PERMISSION_GRANTED
+        ) {
             cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
         } else {
             checkNotificationPermission()
@@ -148,7 +147,8 @@ class MainActivity : ComponentActivity() {
     private fun checkNotificationPermission() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
-                != PackageManager.PERMISSION_GRANTED) {
+                != PackageManager.PERMISSION_GRANTED
+            ) {
                 notificationPermissionRequestCount = 0
                 notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
             } else {
@@ -203,6 +203,7 @@ class MainActivity : ComponentActivity() {
             .putBoolean("auto_start_asked", true)
             .apply()
     }
+
     private fun requestAutoStartPermission() {
         try {
             val manufacturer = Build.MANUFACTURER.lowercase()
@@ -214,6 +215,7 @@ class MainActivity : ComponentActivity() {
                             "com.miui.permcenter.autostart.AutoStartManagementActivity"
                         )
                     )
+
                 manufacturer.contains("oppo") ->
                     Intent().setComponent(
                         ComponentName(
@@ -221,6 +223,7 @@ class MainActivity : ComponentActivity() {
                             "com.coloros.safecenter.permission.startup.StartupAppListActivity"
                         )
                     )
+
                 manufacturer.contains("vivo") ->
                     Intent().setComponent(
                         ComponentName(
@@ -228,6 +231,7 @@ class MainActivity : ComponentActivity() {
                             "com.iqoo.secure.ui.phoneoptimize.AddWhiteListActivity"
                         )
                     )
+
                 manufacturer.contains("letv") ->
                     Intent().setComponent(
                         ComponentName(
@@ -235,6 +239,7 @@ class MainActivity : ComponentActivity() {
                             "com.letv.android.letvsafe.AutobootManageActivity"
                         )
                     )
+
                 manufacturer.contains("asus") ->
                     Intent().setComponent(
                         ComponentName(
@@ -242,6 +247,7 @@ class MainActivity : ComponentActivity() {
                             "com.asus.mobilemanager.entry.FunctionActivity"
                         )
                     ).putExtra("function", "auto_start")
+
                 manufacturer.contains("samsung") -> {
                     Intent().apply {
                         action = Settings.ACTION_APPLICATION_DETAILS_SETTINGS
@@ -249,6 +255,7 @@ class MainActivity : ComponentActivity() {
                         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                     }
                 }
+
                 manufacturer.contains("huawei") ->
                     Intent().setComponent(
                         ComponentName(
@@ -256,6 +263,7 @@ class MainActivity : ComponentActivity() {
                             "com.huawei.systemmanager.startupmgr.ui.StartupNormalAppListActivity"
                         )
                     )
+
                 manufacturer.contains("oneplus") ->
                     Intent().setComponent(
                         ComponentName(
@@ -263,6 +271,7 @@ class MainActivity : ComponentActivity() {
                             "com.oneplus.security.chainlaunch.view.ChainLaunchAppListActivity"
                         )
                     )
+
                 manufacturer.contains("realme") ->
                     Intent().setComponent(
                         ComponentName(
@@ -270,6 +279,7 @@ class MainActivity : ComponentActivity() {
                             "com.coloros.safecenter.permission.startup.FakeActivity"
                         )
                     )
+
                 else -> {
                     Toast.makeText(
                         this,
@@ -405,7 +415,8 @@ fun ScreenDistanceView(
         modifier = Modifier
             .background(backgroundColor)
             .fillMaxSize()
-            .padding(16.dp).verticalScroll(rememberScrollState())
+            .padding(16.dp)
+            .verticalScroll(rememberScrollState())
     ) {
         Text(
             text = "Screen Distance",
@@ -475,12 +486,12 @@ fun ScreenDistanceView(
                 .shadow(10.dp)
         ) {
 
-                Text(
-                    text = "Ölçüm Yapılabilmesi için Yüzünüzün Algılanması Gerekmektedir.",
-                    color = textColor,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.padding(vertical = 10.dp)
-                )
+            Text(
+                text = "Ölçüm Yapılabilmesi için Yüzünüzün Algılanması Gerekmektedir.",
+                color = textColor,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(vertical = 10.dp)
+            )
 
         }
 
