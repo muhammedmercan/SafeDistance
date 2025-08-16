@@ -6,16 +6,23 @@ import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
-import android.graphics.PointF
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraManager
 import android.os.*
 import android.util.Log
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
+import androidx.datastore.preferences.core.booleanPreferencesKey
+import androidx.glance.appwidget.GlanceAppWidgetManager
+import androidx.glance.appwidget.state.updateAppWidgetState
+import androidx.glance.state.PreferencesGlanceStateDefinition
 import com.google.mlkit.vision.camera.CameraSourceConfig
 import com.google.mlkit.vision.camera.CameraXSource
 import com.google.mlkit.vision.face.*
+import com.screen.safedistance.widget.SafeDistanceGlanceWidget
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import java.io.IOException
 import kotlin.math.abs
 
@@ -104,6 +111,7 @@ class SafeDistanceService : Service() {
     override fun onCreate() {
         super.onCreate()
 
+        updateWidgetServiceRunningState(true)
         prefs = getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
         prefs.registerOnSharedPreferenceChangeListener(prefsListener)
 
@@ -124,6 +132,7 @@ class SafeDistanceService : Service() {
         handler.post(measurementRunnable)
         powerHandler.post(screenCheckRunnable) // ekran süresi kontrolü başlat
     }
+
 
     private fun initialNotification(): Notification {
         return NotificationCompat.Builder(this, CHANNEL_ID)
@@ -301,6 +310,7 @@ class SafeDistanceService : Service() {
     }
 
     private fun showWarning(distance: Float) {
+        saveEvent("closeWarning") // ← çok yaklaştı kaydı
         val notification = NotificationCompat.Builder(this, "warning_channel")
             .setContentTitle("Uyarı")
             .setContentText("Ekrana çok yaklaştınız! (${distance.toInt()} mm)")
@@ -315,6 +325,8 @@ class SafeDistanceService : Service() {
     }
 
     private fun sendScreenOnWarning(durationSeconds: Int) {
+        saveEvent("longLookWarning") // ← uzun süre bakıldı kaydı
+
         val minutes = durationSeconds / 60
         val notification = NotificationCompat.Builder(this, "warning_channel")
             .setContentTitle("Ekran çok uzun süredir açık")
@@ -330,6 +342,7 @@ class SafeDistanceService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
+        updateWidgetServiceRunningState(false)
         isServiceRunning = false
         prefs.unregisterOnSharedPreferenceChangeListener(prefsListener)
         handler.removeCallbacksAndMessages(null)
@@ -375,6 +388,33 @@ class SafeDistanceService : Service() {
             manager.createNotificationChannel(infoChannel)
             manager.createNotificationChannel(warningChannel)
             manager.createNotificationChannel(serviceChannel) // ← bu satır eklendi
+        }
+    }
+
+
+    private fun saveEvent(eventType: String) {
+        val today = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
+            .format(java.util.Date())
+        val key = "${eventType}_$today"
+
+        val count = prefs.getInt(key, 0) + 1
+        prefs.edit().putInt(key, count).apply()
+        Log.d(TAG, "Event kaydedildi: $eventType = $count ($today)")
+    }
+
+
+    private fun updateWidgetServiceRunningState(running: Boolean) {
+        CoroutineScope(Dispatchers.Default).launch {
+            val manager = GlanceAppWidgetManager(applicationContext)
+            val glanceIds = manager.getGlanceIds(SafeDistanceGlanceWidget::class.java)
+            glanceIds.forEach { id ->
+                updateAppWidgetState(applicationContext, PreferencesGlanceStateDefinition, id) { prefs ->
+                    prefs.toMutablePreferences().apply {
+                        this[booleanPreferencesKey("service_running")] = running
+                    }
+                }
+                SafeDistanceGlanceWidget().update(applicationContext, id)
+            }
         }
     }
 

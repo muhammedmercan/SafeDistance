@@ -13,7 +13,6 @@
         android:name="android.hardware.camera.front"
         android:required="true" />
 
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
         android:allowBackup="true"
@@ -34,6 +33,19 @@
         <meta-data
             android:name="com.google.mlkit.vision.DEPENDENCIES"
             android:value="face" />
+
+        <receiver
+            android:name=".widget.SafeDistanceGlanceWidgetReceiver"
+            android:exported="true"
+            android:label="Safe Distance">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/safe_distance_widget_info" />
+        </receiver>
 
 
         <activity

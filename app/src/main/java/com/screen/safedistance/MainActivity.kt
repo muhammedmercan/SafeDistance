@@ -1,5 +1,6 @@
 package com.screen.safedistance
 
+import Stats
 import android.Manifest
 import android.content.ComponentName
 import android.content.Context
@@ -15,8 +16,11 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.scrollable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material3.*
@@ -25,6 +29,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -42,6 +47,9 @@ class MainActivity : ComponentActivity() {
 
     private var notificationPermissionRequestCount = 0
     private val maxNotificationPermissionRequests = 3
+
+
+
 
     private val cameraPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -340,6 +348,23 @@ fun AutoStartPermissionDialog(
     )
 }
 
+
+@Composable
+fun InfoDialog(onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = { onDismiss() },
+        confirmButton = {
+            Button(onClick = { onDismiss() }) {
+                Text("Tamam")
+            }
+        },
+        title = { Text("Bilgilendirme") },
+        text = {
+            Text("Uzun süre ekran kullanımı göz yorgunluğuna ve baş ağrısına neden olabilir.\n\nEkrana çok yakın oturmamaya ve her 20 dakikada bir kısa molalar vererek gözlerinizi dinlendirmeye özen gösterin.")
+        }
+    )
+}
+
 @Composable
 fun ScreenDistanceView(
     viewModel: DistanceViewModel,
@@ -353,12 +378,34 @@ fun ScreenDistanceView(
 
     val distanceThreshold by viewModel.distanceThreshold.collectAsState()
     val intervalSeconds by viewModel.intervalSeconds.collectAsState()
+    val stats by viewModel.todayStats.collectAsState()
+
+
+    val context = LocalContext.current
+    val sharedPref = remember {
+        context.getSharedPreferences("MyAppPrefs", Context.MODE_PRIVATE)
+    }
+    val isFirstRun = remember {
+        mutableStateOf(sharedPref.getBoolean("isFirstRun", true))
+    }
+
+
+    if (isFirstRun.value) {
+        InfoDialog(
+            onDismiss = {
+                // dialog kapandığında preference güncelle
+                sharedPref.edit().putBoolean("isFirstRun", false).apply()
+                isFirstRun.value = false
+            }
+        )
+    }
+
 
     Column(
         modifier = Modifier
             .background(backgroundColor)
             .fillMaxSize()
-            .padding(16.dp)
+            .padding(16.dp).verticalScroll(rememberScrollState())
     ) {
         Text(
             text = "Screen Distance",
@@ -422,24 +469,19 @@ fun ScreenDistanceView(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        Box(
+        Card(
             modifier = Modifier
                 .fillMaxWidth()
                 .shadow(10.dp)
-                .background(boxColor, shape = RoundedCornerShape(25.dp))
-                .padding(16.dp)
         ) {
-            Column(
-                verticalArrangement = Arrangement.Center,
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.fillMaxWidth()
-            ) {
+
                 Text(
                     text = "Ölçüm Yapılabilmesi için Yüzünüzün Algılanması Gerekmektedir.",
                     color = textColor,
-                    textAlign = TextAlign.Center
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(vertical = 10.dp)
                 )
-            }
+
         }
 
         Spacer(modifier = Modifier.height(24.dp))
@@ -450,6 +492,7 @@ fun ScreenDistanceView(
             onValueChange = { viewModel.setDistanceThreshold(it) },
             valueRange = 10f..40f,
             steps = 5,
+            enabled = !isServiceRunning
         )
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -460,6 +503,12 @@ fun ScreenDistanceView(
             onValueChange = { viewModel.setIntervalSeconds(it) },
             valueRange = 3f..30f,
             steps = 8,
+            enabled = !isServiceRunning
         )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+
+        Stats(viewModel)
     }
 }
