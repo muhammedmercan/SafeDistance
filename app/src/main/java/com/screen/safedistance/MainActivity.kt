@@ -59,6 +59,16 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private val phoneStatePermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            checkNotificationPermission()
+        } else {
+            Toast.makeText(this, "Telefon durumu izni gerekli", Toast.LENGTH_SHORT).show()
+        }
+    }
+
     private val notificationPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { isGranted ->
@@ -139,6 +149,10 @@ class MainActivity : ComponentActivity() {
             != PackageManager.PERMISSION_GRANTED
         ) {
             cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+        } else if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_PHONE_STATE)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            phoneStatePermissionLauncher.launch(Manifest.permission.READ_PHONE_STATE)
         } else {
             checkNotificationPermission()
         }

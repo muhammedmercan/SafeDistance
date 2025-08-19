@@ -9,6 +9,8 @@ import android.content.pm.PackageManager
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraManager
 import android.os.*
+import android.telephony.PhoneStateListener
+import android.telephony.TelephonyManager
 import android.util.Log
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
@@ -55,16 +57,34 @@ class SafeDistanceService : Service() {
     private val powerHandler = Handler(Looper.getMainLooper())
 
     private var screenOnDuration = 0 // saniye
-
     private var lastWarningTime = 0 // saniye
     private val screenOnThreshold = 20 * 60  // 20 dakika
+
+    // 📞 Telefon görüşmesi için değişken
+    private var inCall = false
+    private val phoneStateListener = object : PhoneStateListener() {
+        override fun onCallStateChanged(state: Int, phoneNumber: String?) {
+            when (state) {
+                TelephonyManager.CALL_STATE_OFFHOOK,
+                TelephonyManager.CALL_STATE_RINGING -> {
+                    Log.d(TAG, "Telefon görüşmesi başladı/çalıyor, ölçüm yapılmayacak.")
+                    inCall = true
+                    stopCamera()
+                }
+                TelephonyManager.CALL_STATE_IDLE -> {
+                    Log.d(TAG, "Telefon görüşmesi bitti, ölçüm tekrar aktif.")
+                    inCall = false
+                    scheduleNextMeasurement()
+                }
+            }
+        }
+    }
 
     private val measurementRunnable = Runnable {
         performMeasurement()
     }
 
     private val screenCheckRunnable = object : Runnable {
-
         override fun run() {
             val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
             val isScreenOn = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT_WATCH) {
@@ -78,7 +98,6 @@ class SafeDistanceService : Service() {
                 screenOnDuration++
 
                 if (screenOnDuration >= screenOnThreshold) {
-                    // Ekran açık süresi, son uyarı zamanından 20dk (screenOnThreshold) fazla mı?
                     if (screenOnDuration - lastWarningTime >= screenOnThreshold) {
                         sendScreenOnWarning(screenOnDuration)
                         lastWarningTime = screenOnDuration
@@ -129,10 +148,13 @@ class SafeDistanceService : Service() {
             return
         }
 
-        handler.post(measurementRunnable)
-        powerHandler.post(screenCheckRunnable) // ekran süresi kontrolü başlat
-    }
+        // 📞 Telefon dinleme başlat
+        val telephonyManager = getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
+        telephonyManager.listen(phoneStateListener, PhoneStateListener.LISTEN_CALL_STATE)
 
+        handler.post(measurementRunnable)
+        powerHandler.post(screenCheckRunnable)
+    }
 
     private fun initialNotification(): Notification {
         return NotificationCompat.Builder(this, CHANNEL_ID)
@@ -187,16 +209,13 @@ class SafeDistanceService : Service() {
             powerManager.isScreenOn
         }
 
-
-        if (!isScreenOn) {
-            // Ekran kapalı, ölçüm yapma, sonraki ölçüm için zamanlayıcıyı ayarla
+        // 📞 Görüşme varsa ölçümü geç
+        if (!isScreenOn || inCall) {
             scheduleNextMeasurement()
             return
         }
 
-        if (isMeasuring || !isServiceRunning) {
-            return
-        }
+        if (isMeasuring || !isServiceRunning) return
 
         isMeasuring = true
         hasProcessedFace = false
@@ -241,26 +260,26 @@ class SafeDistanceService : Service() {
             cameraXSource?.start()
 
             handler.postDelayed({
-                if (isMeasuring) {
-                    stopCamera()
-                }
+                if (isMeasuring) stopCamera()
             }, 2000)
 
         } catch (e: IOException) {
+            Log.e(TAG, "Kamera hatası: ${e.message}")
+            isMeasuring = false
+            scheduleNextMeasurement()
+        } catch (e: RuntimeException) {
+            // 🎥 Kamera başka app tarafından kullanılıyorsa skip et
+            Log.e(TAG, "Kamera başka uygulama tarafından kullanımda: ${e.message}")
             isMeasuring = false
             scheduleNextMeasurement()
         }
     }
 
-
     private fun stopCamera() {
         if (!isMeasuring) return
-
         try {
             cameraXSource?.stop()
-        } catch (_: Exception) {
-        }
-
+        } catch (_: Exception) { }
         cameraXSource = null
         isMeasuring = false
         scheduleNextMeasurement()
@@ -284,11 +303,9 @@ class SafeDistanceService : Service() {
             if (distanceMm < distanceThresholdCm * 10) {
                 showWarning(distanceMm)
                 soClose = true
-            } else {
-                if (soClose) {
-                    showInfo(distanceMm)
-                    soClose = false
-                }
+            } else if (soClose) {
+                showInfo(distanceMm)
+                soClose = false
             }
         }
     }
