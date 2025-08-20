@@ -37,7 +37,7 @@
             android:value="face" />
 
         <receiver
-            android:name=".widget.SafeDistanceGlanceWidgetReceiver"
+            android:name=".utils.SafeDistanceGlanceWidgetReceiver"
             android:exported="true"
             android:label="Safe Distance">
             <intent-filter>
@@ -51,7 +51,7 @@
 
 
         <activity
-            android:name=".MainActivity"
+            android:name=".presentation.MainActivity"
             android:exported="true"
             android:theme="@style/Theme.SafeDistance">
             <intent-filter>

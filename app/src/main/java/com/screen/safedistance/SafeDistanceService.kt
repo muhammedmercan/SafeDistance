@@ -10,8 +10,10 @@ import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraManager
 import android.os.*
 import android.telephony.PhoneStateListener
+import android.telephony.TelephonyCallback
 import android.telephony.TelephonyManager
 import android.util.Log
+import androidx.annotation.RequiresApi
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
 import androidx.datastore.preferences.core.booleanPreferencesKey
@@ -21,7 +23,7 @@ import androidx.glance.state.PreferencesGlanceStateDefinition
 import com.google.mlkit.vision.camera.CameraSourceConfig
 import com.google.mlkit.vision.camera.CameraXSource
 import com.google.mlkit.vision.face.*
-import com.screen.safedistance.widget.SafeDistanceGlanceWidget
+import com.screen.safedistance.presentation.SafeDistanceGlanceWidget
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -62,8 +64,14 @@ class SafeDistanceService : Service() {
 
     // 📞 Telefon görüşmesi için değişken
     private var inCall = false
-    private val phoneStateListener = object : PhoneStateListener() {
-        override fun onCallStateChanged(state: Int, phoneNumber: String?) {
+
+    private val telephonyManager by lazy {
+        getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
+    }
+
+    private val telephonyCallback = @RequiresApi(Build.VERSION_CODES.S)
+    object : TelephonyCallback(), TelephonyCallback.CallStateListener {
+        override fun onCallStateChanged(state: Int) {
             when (state) {
                 TelephonyManager.CALL_STATE_OFFHOOK,
                 TelephonyManager.CALL_STATE_RINGING -> {
@@ -71,8 +79,33 @@ class SafeDistanceService : Service() {
                     inCall = true
                     stopCamera()
                 }
+
                 TelephonyManager.CALL_STATE_IDLE -> {
                     Log.d(TAG, "Telefon görüşmesi bitti, ölçüm tekrar aktif.")
+                    inCall = false
+                    scheduleNextMeasurement()
+                }
+            }
+        }
+    }
+
+    private val phoneStateListener = object : PhoneStateListener() {
+        override fun onCallStateChanged(state: Int, phoneNumber: String?) {
+            when (state) {
+                TelephonyManager.CALL_STATE_OFFHOOK, TelephonyManager.CALL_STATE_RINGING -> {
+                    Log.d(
+                        TAG,
+                        "Telefon görüşmesi başladı/çalıyor, ölçüm yapılmayacak."
+                    )
+                    inCall = true
+                    stopCamera()
+                }
+
+                TelephonyManager.CALL_STATE_IDLE -> {
+                    Log.d(
+                        TAG,
+                        "Telefon görüşmesi bitti, ölçüm tekrar aktif."
+                    )
                     inCall = false
                     scheduleNextMeasurement()
                 }
@@ -119,6 +152,7 @@ class SafeDistanceService : Service() {
                     distanceThresholdCm = sharedPrefs.getFloat(key, 30f)
                     Log.d(TAG, "Mesafe eşiği güncellendi: $distanceThresholdCm cm")
                 }
+
                 "intervalSeconds" -> {
                     val intervalSaniye = sharedPrefs.getFloat(key, 3f)
                     intervalMillis = (intervalSaniye * 1000).toLong()
@@ -148,9 +182,14 @@ class SafeDistanceService : Service() {
             return
         }
 
-        // 📞 Telefon dinleme başlat
-        val telephonyManager = getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
-        telephonyManager.listen(phoneStateListener, PhoneStateListener.LISTEN_CALL_STATE)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            telephonyManager.registerTelephonyCallback(
+                mainExecutor,
+                telephonyCallback
+            )
+        } else {
+            telephonyManager.listen(phoneStateListener, PhoneStateListener.LISTEN_CALL_STATE)
+        }
 
         handler.post(measurementRunnable)
         powerHandler.post(screenCheckRunnable)
@@ -279,7 +318,8 @@ class SafeDistanceService : Service() {
         if (!isMeasuring) return
         try {
             cameraXSource?.stop()
-        } catch (_: Exception) { }
+        } catch (_: Exception) {
+        }
         cameraXSource = null
         isMeasuring = false
         scheduleNextMeasurement()
@@ -425,7 +465,11 @@ class SafeDistanceService : Service() {
             val manager = GlanceAppWidgetManager(applicationContext)
             val glanceIds = manager.getGlanceIds(SafeDistanceGlanceWidget::class.java)
             glanceIds.forEach { id ->
-                updateAppWidgetState(applicationContext, PreferencesGlanceStateDefinition, id) { prefs ->
+                updateAppWidgetState(
+                    applicationContext,
+                    PreferencesGlanceStateDefinition,
+                    id
+                ) { prefs ->
                     prefs.toMutablePreferences().apply {
                         this[booleanPreferencesKey("service_running")] = running
                     }

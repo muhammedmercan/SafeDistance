@@ -1,9 +1,15 @@
-import android.content.Context
+package com.screen.safedistance.presentation
 
-class StatsRepository(private val context: Context) {
+import android.content.Context
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Date
+import java.util.Locale
+
+class StatsViewModel(private val context: Context) {
 
     private val prefs = context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
-    private val dateFormat = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
+    private val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
 
     private fun getKey(eventType: String, date: String) = "${eventType}_$date"
 
@@ -14,12 +20,12 @@ class StatsRepository(private val context: Context) {
     }
 
     fun getTodayStats(): Pair<Int, Int> {
-        val today = dateFormat.format(java.util.Date())
+        val today = dateFormat.format(Date())
         return getDailyStats(today)
     }
 
     fun getWeeklyStats(): Pair<Int, Int> {
-        val calendar = java.util.Calendar.getInstance()
+        val calendar = Calendar.getInstance()
         val today = calendar.time
         var totalClose = 0
         var totalLong = 0
@@ -29,25 +35,25 @@ class StatsRepository(private val context: Context) {
             val stats = getDailyStats(date)
             totalClose += stats.first
             totalLong += stats.second
-            calendar.add(java.util.Calendar.DAY_OF_YEAR, -1) // bir gün geri git
+            calendar.add(Calendar.DAY_OF_YEAR, -1) // bir gün geri git
         }
 
         return totalClose to totalLong
     }
 
     fun getMonthlyStats(): Pair<Int, Int> {
-        val calendar = java.util.Calendar.getInstance()
+        val calendar = Calendar.getInstance()
         var totalClose = 0
         var totalLong = 0
 
-        val daysInMonth = calendar.getActualMaximum(java.util.Calendar.DAY_OF_MONTH)
+        val daysInMonth = calendar.getActualMaximum(Calendar.DAY_OF_MONTH)
 
         for (i in 0 until daysInMonth) {
             val date = dateFormat.format(calendar.time)
             val stats = getDailyStats(date)
             totalClose += stats.first
             totalLong += stats.second
-            calendar.add(java.util.Calendar.DAY_OF_YEAR, -1)
+            calendar.add(Calendar.DAY_OF_YEAR, -1)
         }
 
         return totalClose to totalLong

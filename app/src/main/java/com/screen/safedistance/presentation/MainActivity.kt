@@ -1,41 +1,22 @@
-package com.screen.safedistance
+package com.screen.safedistance.presentation
 
-import Stats
 import android.Manifest
+import android.app.ActivityManager
 import android.content.ComponentName
-import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.net.Uri
 import android.os.Build
 import android.os.Bundle
-import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
-import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.scrollable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import com.screen.safedistance.SafeDistanceService
 import com.screen.safedistance.ui.theme.SafeDistanceTheme
 
 class MainActivity : ComponentActivity() {
@@ -134,7 +115,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun checkServiceRunning() {
-        val manager = getSystemService(Context.ACTIVITY_SERVICE) as android.app.ActivityManager
+        val manager = getSystemService(ACTIVITY_SERVICE) as ActivityManager
         for (service in manager.getRunningServices(Integer.MAX_VALUE)) {
             if (SafeDistanceService::class.java.name == service.service.className) {
                 isServiceRunning.value = true
@@ -198,7 +179,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun shouldShowAutoStartPermission(): Boolean {
-        val prefs = getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
+        val prefs = getSharedPreferences("app_prefs", MODE_PRIVATE)
         val hasAsked = prefs.getBoolean("auto_start_asked", false)
         val manufacturer = Build.MANUFACTURER.lowercase()
 
@@ -212,7 +193,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun markAutoStartAsked() {
-        getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
+        getSharedPreferences("app_prefs", MODE_PRIVATE)
             .edit()
             .putBoolean("auto_start_asked", true)
             .apply()
@@ -262,13 +243,13 @@ class MainActivity : ComponentActivity() {
                         )
                     ).putExtra("function", "auto_start")
 
-                manufacturer.contains("samsung") -> {
-                    Intent().apply {
-                        action = Settings.ACTION_APPLICATION_DETAILS_SETTINGS
-                        data = Uri.fromParts("package", packageName, null)
-                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    }
-                }
+                manufacturer.contains("samsung") ->
+                    Intent().setComponent(
+                        ComponentName(
+                            "com.samsung.android.lool",
+                            "com.samsung.android.sm.battery.ui.BatteryActivity"
+                        )
+                    )
 
                 manufacturer.contains("huawei") ->
                     Intent().setComponent(
@@ -317,223 +298,7 @@ class MainActivity : ComponentActivity() {
 
 }
 
-@Composable
-fun AutoStartPermissionDialog(
-    onDismiss: () -> Unit,
-    onAllow: () -> Unit
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = {
-            Text(
-                "Batarya Optimizasyonu",
-                fontWeight = FontWeight.Bold,
-                color = Color.White
-            )
-        },
-        text = {
-            Text(
-                "Uygulamanın arka planda düzgün çalışabilmesi ve size güvenli mesafe uyarıları gönderebilmesi için batarya optimizasyonunu kapatmanız önerilir.",
-                style = TextStyle(fontSize = 14.sp),
-                color = Color.White
-            )
-        },
-        icon = {
-            Icon(
-                Icons.Default.Notifications,
-                contentDescription = null,
-                tint = Color(0xFF4CAF50)
-            )
-        },
-        confirmButton = {
-            TextButton(
-                onClick = onAllow,
-                colors = ButtonDefaults.textButtonColors(
-                    contentColor = Color(0xFF4CAF50)
-                )
-            ) {
-                Text("İzin Ver", fontWeight = FontWeight.Bold)
-            }
-        },
-        dismissButton = {
-            TextButton(
-                onClick = onDismiss,
-                colors = ButtonDefaults.textButtonColors(
-                    contentColor = Color.Gray
-                )
-            ) {
-                Text("Daha Sonra")
-            }
-        },
-        containerColor = Color(0xFF222222),
-        iconContentColor = Color.White,
-        titleContentColor = Color.White,
-        textContentColor = Color.White
-    )
-}
 
 
-@Composable
-fun InfoDialog(onDismiss: () -> Unit) {
-    AlertDialog(
-        onDismissRequest = { onDismiss() },
-        confirmButton = {
-            Button(onClick = { onDismiss() }) {
-                Text("Tamam")
-            }
-        },
-        title = { Text("Bilgilendirme") },
-        text = {
-            Text("Uzun süre ekran kullanımı göz yorgunluğuna ve baş ağrısına neden olabilir.\n\nEkrana çok yakın oturmamaya ve her 20 dakikada bir kısa molalar vererek gözlerinizi dinlendirmeye özen gösterin.")
-        }
-    )
-}
-
-@Composable
-fun ScreenDistanceView(
-    viewModel: DistanceViewModel,
-    isServiceRunning: Boolean,
-    onStartServiceClick: () -> Unit,
-    onStopServiceClick: () -> Unit
-) {
-    val backgroundColor = Color.Black
-    val boxColor = Color(0xFF222222)
-    val textColor = Color.White
-
-    val distanceThreshold by viewModel.distanceThreshold.collectAsState()
-    val intervalSeconds by viewModel.intervalSeconds.collectAsState()
-    val stats by viewModel.todayStats.collectAsState()
 
 
-    val context = LocalContext.current
-    val sharedPref = remember {
-        context.getSharedPreferences("MyAppPrefs", Context.MODE_PRIVATE)
-    }
-    val isFirstRun = remember {
-        mutableStateOf(sharedPref.getBoolean("isFirstRun", true))
-    }
-
-
-    if (isFirstRun.value) {
-        InfoDialog(
-            onDismiss = {
-                // dialog kapandığında preference güncelle
-                sharedPref.edit().putBoolean("isFirstRun", false).apply()
-                isFirstRun.value = false
-            }
-        )
-    }
-
-
-    Column(
-        modifier = Modifier
-            .background(backgroundColor)
-            .fillMaxSize()
-            .padding(16.dp)
-            .verticalScroll(rememberScrollState())
-    ) {
-        Text(
-            text = "Screen Distance",
-            fontWeight = FontWeight.Bold,
-            fontSize = 24.sp,
-            color = textColor
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Servis Kontrol Butonu
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 8.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = if (isServiceRunning) Color(0xFF4CAF50) else Color(0xFFFF5252)
-            ),
-            shape = RoundedCornerShape(12.dp)
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column {
-                    Text(
-                        text = if (isServiceRunning) "Servis Çalışıyor" else "Servis Durduruldu",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 18.sp,
-                        color = Color.White
-                    )
-                    Text(
-                        text = if (isServiceRunning) "Ekran mesafesi takip ediliyor" else "Takip başlatmak için butona tıklayın",
-                        fontSize = 14.sp,
-                        color = Color.White.copy(alpha = 0.8f)
-                    )
-                }
-
-                Button(
-                    onClick = {
-                        if (isServiceRunning) {
-                            onStopServiceClick()
-                        } else {
-                            onStartServiceClick()
-                        }
-                    },
-                    modifier = Modifier
-                        .size(48.dp)
-                        .background(
-                            color = Color.White.copy(alpha = 0.2f),
-                            shape = RoundedCornerShape(24.dp)
-                        )
-                ) {
-                    Text(if (isServiceRunning) "Durdur" else "Başlat")
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .shadow(10.dp)
-        ) {
-
-            Text(
-                text = "Ölçüm Yapılabilmesi için Yüzünüzün Algılanması Gerekmektedir.",
-                color = textColor,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.padding(vertical = 10.dp)
-            )
-
-        }
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        Text(text = "Uyarı Mesafesi: ${distanceThreshold.toInt()} cm", color = Color.White)
-        Slider(
-            value = distanceThreshold,
-            onValueChange = { viewModel.setDistanceThreshold(it) },
-            valueRange = 10f..40f,
-            steps = 5,
-            enabled = !isServiceRunning
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        Text(text = "Ölçüm Sıklığı: ${intervalSeconds.toInt()} saniye", color = Color.White)
-        Slider(
-            value = intervalSeconds,
-            onValueChange = { viewModel.setIntervalSeconds(it) },
-            valueRange = 3f..30f,
-            steps = 8,
-            enabled = !isServiceRunning
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-
-        Stats(viewModel)
-    }
-}

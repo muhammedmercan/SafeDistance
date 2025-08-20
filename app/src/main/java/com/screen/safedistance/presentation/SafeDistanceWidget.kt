@@ -1,4 +1,4 @@
-package com.screen.safedistance.widget
+package com.screen.safedistance.presentation
 
 import android.content.Context
 import androidx.compose.ui.graphics.Color
@@ -23,7 +23,7 @@ import androidx.glance.layout.height
 import androidx.glance.layout.padding
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
-import com.screen.safedistance.widget.ToggleServiceAction
+import com.screen.safedistance.utils.ToggleServiceAction
 
 class SafeDistanceGlanceWidget : GlanceAppWidget(
 

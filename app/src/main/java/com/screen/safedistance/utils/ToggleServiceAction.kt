@@ -1,4 +1,4 @@
-package com.screen.safedistance.widget
+package com.screen.safedistance.utils
 
 import android.app.ActivityManager
 import android.content.Context
