@@ -59,6 +59,10 @@ fun ScreenDistanceView(
         mutableStateOf(sharedPref.getBoolean("isFirstRun", true))
     }
 
+    val showPermissionErrorDialog = remember {
+        mutableStateOf(false)
+    }
+
 
     if (isFirstRun.value) {
         InfoDialog(
@@ -69,6 +73,8 @@ fun ScreenDistanceView(
             }
         )
     }
+
+
 
 
     Column(

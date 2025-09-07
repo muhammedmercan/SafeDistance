@@ -16,6 +16,7 @@ import android.util.Log
 import androidx.annotation.RequiresApi
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.glance.appwidget.GlanceAppWidgetManager
 import androidx.glance.appwidget.state.updateAppWidgetState
@@ -89,7 +90,7 @@ class SafeDistanceService : Service() {
         }
     }
 
-    private val phoneStateListener = object : PhoneStateListener() {
+    private val phoneStateListener =  object : PhoneStateListener() {
         override fun onCallStateChanged(state: Int, phoneNumber: String?) {
             when (state) {
                 TelephonyManager.CALL_STATE_OFFHOOK, TelephonyManager.CALL_STATE_RINGING -> {
@@ -183,10 +184,13 @@ class SafeDistanceService : Service() {
         }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            telephonyManager.registerTelephonyCallback(
-                mainExecutor,
-                telephonyCallback
-            )
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_PHONE_STATE) == PackageManager.PERMISSION_GRANTED) {
+
+                telephonyManager.registerTelephonyCallback(
+                    mainExecutor,
+                    telephonyCallback
+                )
+            }
         } else {
             telephonyManager.listen(phoneStateListener, PhoneStateListener.LISTEN_CALL_STATE)
         }

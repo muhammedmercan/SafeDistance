@@ -2,11 +2,14 @@ package com.screen.safedistance.presentation
 
 import android.Manifest
 import android.app.ActivityManager
+import android.app.AlertDialog
 import android.content.ComponentName
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -87,7 +90,7 @@ class MainActivity : ComponentActivity() {
                     ScreenDistanceView(
                         viewModel = distanceViewModel,
                         isServiceRunning = isServiceRunning.value,
-                        onStartServiceClick = { checkAndStartService() },
+                        onStartServiceClick = { checkAndRequestAllPermissions() },
                         onStopServiceClick = { stopSafeDistanceService() }
                     )
 
@@ -125,38 +128,102 @@ class MainActivity : ComponentActivity() {
         isServiceRunning.value = false
     }
 
-    private fun checkAndStartService() {
+    private fun openAppSettings() {
+        val intent = Intent(
+            Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+            Uri.fromParts("package", packageName, null)
+        )
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        startActivity(intent)
+    }
+
+
+    private val multiplePermissionsLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { permissions ->
+            val cameraGranted = permissions[Manifest.permission.CAMERA] ?: false
+            val phoneStateGranted = permissions[Manifest.permission.READ_PHONE_STATE] ?: false
+            val notificationGranted =
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    permissions[Manifest.permission.POST_NOTIFICATIONS] ?: false
+                } else {
+                    true // Android 12 ve altı → gerek yok
+                }
+
+            if (cameraGranted && phoneStateGranted && notificationGranted) {
+                startSafeDistanceService()
+            } else {
+                AlertDialog.Builder(this)
+                    .setTitle("İzin Gerekli")
+                    .setMessage("Servisin çalışabilmesi için gerekli izinleri ayarlardan vermelisiniz.")
+                    .setPositiveButton("Ayarlar") { _, _ ->
+                        openAppSettings()
+                    }
+                    .setNegativeButton("İptal", null)
+                    .show()
+            }
+        }
+
+
+    private fun checkAndRequestAllPermissions() {
+        val permissionsToRequest = mutableListOf<String>()
+
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
             != PackageManager.PERMISSION_GRANTED
         ) {
-            cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
-        } else if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_PHONE_STATE)
+            permissionsToRequest.add(Manifest.permission.CAMERA)
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            permissionsToRequest.add(Manifest.permission.POST_NOTIFICATIONS)
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.READ_PHONE_STATE)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            permissionsToRequest.add(Manifest.permission.READ_PHONE_STATE)
+        }
+
+        if (permissionsToRequest.isNotEmpty()) {
+            multiplePermissionsLauncher.launch(permissionsToRequest.toTypedArray())
+
+        } else {
+            // Zaten hepsi verilmiş → direkt başlat
+            startSafeDistanceService()
+        }
+
+    }
+
+
+
+
+    private fun checkNotificationPermission() {
+        // Android 13 ve üstü için POST_NOTIFICATIONS gerekiyor
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(
+                    this,
+                    Manifest.permission.POST_NOTIFICATIONS
+                ) != PackageManager.PERMISSION_GRANTED
+            ) {
+                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            } else {
+                checkPhoneStatePermission() // Bildirim izni varsa sıradaki kontrol
+            }
+        } else {
+            checkPhoneStatePermission() // Android 12 ve altı → direkt geç
+        }
+    }
+
+    private fun checkPhoneStatePermission() {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_PHONE_STATE)
             != PackageManager.PERMISSION_GRANTED
         ) {
             phoneStatePermissionLauncher.launch(Manifest.permission.READ_PHONE_STATE)
         } else {
-            checkNotificationPermission()
-        }
-    }
-
-    private fun checkNotificationPermission() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
-                != PackageManager.PERMISSION_GRANTED
-            ) {
-                notificationPermissionRequestCount = 0
-                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-            } else {
-                startSafeDistanceService()
-                if (shouldShowAutoStartPermission()) {
-                    showAutoStartDialog.value = true
-                }
-            }
-        } else {
-            startSafeDistanceService()
-            if (shouldShowAutoStartPermission()) {
-                showAutoStartDialog.value = true
-            }
+            startSafeDistanceService() // Tüm izinler tamam → servisi başlat
         }
     }
 
