@@ -149,7 +149,8 @@ fun ScreenDistanceView(
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .shadow(10.dp)
+                .shadow(10.dp),
+            colors =  CardDefaults.cardColors(containerColor = Color(0xFF2C2C2E))
         ) {
 
             Text(
